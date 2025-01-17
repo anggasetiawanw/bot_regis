@@ -1,0 +1,99 @@
+import discord
+import pyodbc
+
+class MyClient(discord.Client):
+    async def on_ready(self):
+        print('Logged on as', self.user)
+        connection_string = 'DRIVER={SQL Server};SERVER=62.146.233.83,22024;DATABASE=DNMembership;UID=DNBots;PWD=Digikom2008!'
+        self.cnxn = pyodbc.connect(connection_string)
+
+    async def on_message(self, message):
+        if message.author == self.user or message.author.bot:
+            return
+
+        if message.content.startswith('!register'):
+            await self.handle_register_command(message)
+
+    async def handle_register_command(self, message):
+        cursor = self.cnxn.cursor()
+        cursor.execute('SELECT COUNT(*) FROM Accounts WHERE discord_id = ?', str(message.author.id))
+        user_count = cursor.fetchone()[0]
+
+        registration_info = message.content.split()[1:]
+
+        if len(registration_info) < 2:
+            await message.author.send('Please provide a username and password.')
+        else:
+            username = registration_info[0]
+            password = registration_info[1]
+            result = await self.register_account(username, password, message.author.id)
+
+            if result == 0:
+                await message.author.send('You have been successfully registered!')
+            elif result == 1:
+                await message.author.send('Account already exists.')
+            elif result == 2:
+                await message.author.send('Invalid account name.')
+            elif result == 3:
+                await message.author.send('You have already registered the maximum number of accounts.')
+            else:
+                await message.author.send('An error occurred while registering.')
+
+    async def handle_change_password_command(self, message):
+        cursor = self.cnxn.cursor()
+        cursor.execute('SELECT COUNT(*) FROM Accounts WHERE discord_id = ?', str(message.author.id))
+        user_count = cursor.fetchone()[0]
+
+        change_password_info = message.content.split()[1:]
+
+        if len(change_password_info) < 2:
+            await message.author.send('Please provide your username and new password.')
+        else:
+            username = change_password_info[0]
+            new_password = change_password_info[1]
+            result = await self.change_password(username, new_password, message.author.id)
+
+            if result == 0:
+                await message.author.send('Your password has been changed successfully!')
+            elif result == 1:
+                await message.author.send('Account not found.')
+            elif result == 2:
+                await message.author.send('Incorrect username or password.')
+            elif result == 3:
+                await message.author.send('You are not authorized to change this account\'s password.')
+            else:
+                await message.author.send('An error occurred while changing your password.')
+
+    async def register_account(self, account_name, password, discord_id):
+        cursor = self.cnxn.cursor()
+        cursor.execute('SELECT COUNT(*) FROM Accounts WHERE discord_id = ?', discord_id)
+        account_count = cursor.fetchone()[0]
+
+        if account_count >= 2:
+            return 3
+
+        cursor.execute("EXEC _BOT_DISCORD_AKUN ?, ?, ? ", account_name, password, discord_id)
+        result = cursor.fetchone()[0]
+        cursor.nextset()
+        cursor.commit()
+        cursor.close()
+        return result
+
+    
+    async def change_password(self, account_name, password, discord_id):
+        cursor = self.cnxn.cursor()
+        cursor.execute('SELECT AccountID FROM Accounts WHERE discord_id = ? AND AccountName = ?', discord_id, account_name)
+        account_id = cursor.fetchone()
+        if not account_id:
+            return 1
+        
+        cursor.execute("EXEC _BOT_DISCORD_CPASS ?, ?, ?", account_name, password, discord_id)
+        result = cursor.fetchone()[0]
+        cursor.nextset()
+        cursor.commit()
+        cursor.close()
+        return result
+
+intents = discord.Intents.default()
+client = MyClient(intents=intents)
+client.run('MTMyOTY2NTk1MzYxMjY5MzU4NQ.GNts0E.lDEj6rm5j7wzlzWAUYd8akyReynt1-KG0D9ozo')
