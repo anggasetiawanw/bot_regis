@@ -1,0 +1,26 @@
+{
+  "dependencies": {
+    "discord.js": "^14.17.3",
+    "dotenv": "^16.4.7",
+    "mssql": "^11.0.1"
+  },
+  "name": "repo-ds",
+  "version": "1.0.0",
+  "main": "discord.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/anggasetiawanw/legend-acc-bot.git"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "type": "commonjs",
+  "bugs": {
+    "url": "https://github.com/anggasetiawanw/legend-acc-bot/issues"
+  },
+  "homepage": "https://github.com/anggasetiawanw/legend-acc-bot#readme",
+  "description": ""
+}
