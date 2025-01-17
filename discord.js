@@ -1,6 +1,21 @@
 require('dotenv').config();
 const { Client, GatewayIntentBits, Events, Partials } = require('discord.js');
 const sql = require('mssql');
+const express = require('express'); // Add Express for HTTP server
+
+// Initialize Express
+const app = express();
+const PORT = process.env.PORT || 8000; // Default to 8000 or use an environment variable
+
+// Simple health check endpoint
+app.get('/', (req, res) => {
+  res.status(200).send('Bot is running.');
+});
+
+// Start the HTTP server
+app.listen(PORT, () => {
+  console.log(`Health check server running on port ${PORT}`);
+});
 
 // Konfigurasi koneksi database
 const dbConfig = {
@@ -23,7 +38,7 @@ async function connectToDatabase() {
     return pool;
   } catch (err) {
     console.error('Database connection failed:', err);
-    process.exit(1); // Keluar jika koneksi gagal
+    process.exit(1); // Exit if database connection fails
   }
 }
 
@@ -46,7 +61,6 @@ client.on(Events.ClientReady, (readyClient) => {
 client.on('messageCreate', async (message) => {
   if (message.author.bot) return;
 
-  // Perintah "!register"
   if (message.content.startsWith('!register')) {
     const args = message.content.split(' ').slice(1);
 
@@ -87,31 +101,6 @@ client.on('messageCreate', async (message) => {
       }
     }
   }
-
-  // Perintah "!change-password"
-  // if (message.content.startsWith('!change-password')) {
-  //   const args = message.content.split(' ').slice(1);
-
-  //   if (args.length < 2) {
-  //     message.reply('Please provide your username and new password.');
-  //   } else {
-  //     const username = args[0];
-  //     const newPassword = args[1];
-
-  //     const result = await changePassword(
-  //       username,
-  //       newPassword,
-  //       message.author.id
-  //     );
-  //     if (result === 0) {
-  //       message.reply('Your password has been successfully changed!');
-  //     } else if (result === 1) {
-  //       message.reply('Account not found.');
-  //     } else {
-  //       message.reply('An error occurred while changing your password.');
-  //     }
-  //   }
-  // }
 });
 
 // Fungsi untuk registrasi akun
@@ -123,32 +112,14 @@ async function registerAccount(username, password, discordId) {
       .input('AccountName', sql.VarChar, username)
       .input('NxLoginPwd', sql.VarChar, password)
       .input('DiscordID', sql.VarChar, discordId)
-      .execute('_BOT_DISCORD_AKUN'); // Ganti dengan prosedur SQL Anda
+      .execute('_BOT_DISCORD_AKUN');
 
     console.log('resultRegister', resultRegister.recordset[0]['']);
 
-    return resultRegister.recordset[0]['']; // Mengembalikan nilai output dari prosedur
+    return resultRegister.recordset[0][''];
   } catch (err) {
     console.error('Error during registration:', err);
-    return -1; // Menunjukkan kesalahan
-  }
-}
-
-// Fungsi untuk mengganti password
-async function changePassword(username, newPassword, discordId) {
-  try {
-    const pool = await sql.connect(dbConfig);
-    const result = await pool
-      .request()
-      .input('AccountName', sql.VarChar, username)
-      .input('NxLoginPwd', sql.VarChar, newPassword)
-      .input('DiscordID', sql.VarChar, discordId)
-      .execute('_BOT_DISCORD_CPASS'); // Ganti dengan prosedur SQL Anda
-
-    return result.returnValue; // Mengembalikan nilai output dari prosedur
-  } catch (err) {
-    console.error('Error during password change:', err);
-    return -1; // Menunjukkan kesalahan
+    return -1;
   }
 }
 
