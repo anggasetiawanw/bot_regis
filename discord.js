@@ -63,7 +63,7 @@ client.on('messageCreate', async (message) => {
         .query(
           'SELECT COUNT(*) AS user_count FROM Accounts WHERE discord_id = @discord_id'
         );
-      if (user_count.recordset[0].user_count > 2) {
+      if (user_count.recordset[0].user_count > 1) {
         message.reply(
           'You have already registered the maximum number of accounts.'
         );

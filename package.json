@@ -9,7 +9,7 @@
   "main": "discord.js",
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1",
-    "run": "node discord.js"
+    "start": "node discord.js"
   },
   "repository": {
     "type": "git",
