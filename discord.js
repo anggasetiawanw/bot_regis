@@ -1,5 +1,11 @@
 require('dotenv').config();
-const { Client, GatewayIntentBits, Events, Partials } = require('discord.js');
+const {
+  Client,
+  GatewayIntentBits,
+  Events,
+  Partials,
+  ActivityType,
+} = require('discord.js');
 const sql = require('mssql');
 const express = require('express'); // Add Express for HTTP server
 
@@ -80,7 +86,6 @@ client.on(Events.ClientReady, (readyClient) => {
     }
     odd = !odd;
   }, 30000);
-  
 });
 
 // Event: Ketika menerima pesan
