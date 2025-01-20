@@ -55,6 +55,32 @@ const client = new Client({
 // Event: Bot siap digunakan
 client.on(Events.ClientReady, (readyClient) => {
   console.log(`Logged in as ${readyClient.user.tag}!`);
+
+  let odd = true;
+  setInterval(async () => {
+    if (odd) {
+      client.user.setActivity({
+        name: 'Legend Dragon Nest',
+        type: ActivityType.Playing,
+      });
+    } else {
+      try {
+        const totalPlayer = await countPlayerOnline();
+        if (totalPlayer > 0) {
+          client.user.setActivity({
+            name: `${totalPlayer} player online`,
+            type: ActivityType.Watching,
+          });
+        } else {
+          client.user.setActivity('No player online', { type: 'WATCHING' });
+        }
+      } catch (error) {
+        console.error('Error executing query:', error);
+      }
+    }
+    odd = !odd;
+  }, 30000);
+  
 });
 
 // Event: Ketika menerima pesan
@@ -114,11 +140,35 @@ async function registerAccount(username, password, discordId) {
       .input('DiscordID', sql.VarChar, discordId)
       .execute('_BOT_DISCORD_AKUN');
 
-    console.log('resultRegister', resultRegister.recordset[0]['']);
-
     return resultRegister.recordset[0][''];
   } catch (err) {
     console.error('Error during registration:', err);
+    return -1;
+  }
+}
+
+async function countPlayerOnline() {
+  try {
+    const pool = await sql.connect(dbConfig);
+    const result = await pool.request().query(`
+      DECLARE @selectPlayer int = (SELECT COUNT(*) FROM DNAuth where CertifyingStep = 2 ) ;
+      DECLARE @totalPlayer int  = @selectPlayer;
+
+      -- Return the result
+      SELECT @TotalPlayer AS TotalPlayer;
+    `);
+    if (result.recordset && result.recordset.length > 0) {
+      const { SelectPlayer, TotalPlayer } = result.recordset[0];
+      if (SelectPlayer !== null) {
+        return TotalPlayer;
+      } else {
+        return 0;
+      }
+    } else {
+      return 0;
+    }
+  } catch (error) {
+    console.error('Error executing query:', error);
     return -1;
   }
 }
