@@ -5,10 +5,18 @@ const {
   Events,
   Partials,
   ActivityType,
+  Collection,
+  EmbedBuilder,
+  MessageFlags,
 } = require('discord.js');
+
 const sql = require('mssql');
 const express = require('express'); // Add Express for HTTP server
-
+const { DB_CONFIG, CHANNEL_ID } = require('./config/config');
+const { countPlayerOnline } = require('./utils/functions_sql');
+const { buttonsRow } = require('./components/button');
+const fs = require('fs');
+const path = require('path');
 // Initialize Express
 const app = express();
 const PORT = process.env.PORT || 8000; // Default to 8000 or use an environment variable
@@ -24,22 +32,11 @@ app.listen(PORT, () => {
 });
 
 // Konfigurasi koneksi database
-const dbConfig = {
-  user: process.env.SQL_USER,
-  password: process.env.SQL_PASSWORD,
-  server: process.env.SQL_SERVER,
-  database: process.env.SQL_DATABASE,
-  port: parseInt(process.env.SQL_PORT, 10),
-  options: {
-    encrypt: true, // Aktifkan jika menggunakan koneksi SSL
-    trustServerCertificate: true, // Bypass sertifikat SSL jika diperlukan
-  },
-};
 
 // Fungsi untuk terhubung ke database
 async function connectToDatabase() {
   try {
-    const pool = await sql.connect(dbConfig);
+    const pool = await sql.connect(DB_CONFIG);
     console.log('Connected to SQL Server');
     return pool;
   } catch (err) {
@@ -50,16 +47,19 @@ async function connectToDatabase() {
 
 // Inisialisasi bot Discord
 const client = new Client({
-  intents: [
-    GatewayIntentBits.DirectMessages,
-    GatewayIntentBits.DirectMessageReactions,
-    GatewayIntentBits.DirectMessageTyping,
-  ],
-  partials: [Partials.Message, Partials.Channel],
+  intents: [GatewayIntentBits.Guilds, GatewayIntentBits.GuildMessages],
 });
+client.commands = new Collection();
+const commandFiles = fs
+  .readdirSync(path.join(__dirname, 'commands'))
+  .filter((file) => file.endsWith('.js'));
+for (const file of commandFiles) {
+  const command = require(`./commands/${file}`);
+  client.commands.set(command.data.customId, command);
+}
 
 // Event: Bot siap digunakan
-client.on(Events.ClientReady, (readyClient) => {
+client.on(Events.ClientReady, async (readyClient) => {
   console.log(`Logged in as ${readyClient.user.tag}!`);
 
   let odd = true;
@@ -86,98 +86,67 @@ client.on(Events.ClientReady, (readyClient) => {
     }
     odd = !odd;
   }, 30000);
+
+  const channelId = CHANNEL_ID;
+  const channel = client.channels.cache.get(channelId);
+  if (!channel) {
+    console.error(`Channel with ID ${channelId} not found.`);
+    return;
+  }
+
+  // Send buttons to the channel
+  const embed = new EmbedBuilder()
+    .setColor('#FFD700') // Gold color
+    .setTitle('🐦 LEGEND DRAGON NEST ACCOUNT PORTAL 🐦')
+    .setDescription(
+      '**Welcome to Legend Account portal!**\n' +
+        'Manage your Legend Dragon Nest account\n\n' +
+        '**REGISTER YOUR ACCOUNT**\n' +
+        '→ Create your Legend Dragon Nest profile now!\n' +
+        '→ Each Discord account can register up to **2 Legend Dragon Nest accounts**.\n' +
+        '→ Account names must be between **5 and 10 characters**.\n' +
+        '→ Passwords must be between **6 and 10 characters**.\n\n'
+    )
+    .setImage(
+      'https://cdn.discordapp.com/attachments/1329091833204310031/1330146337982779403/LOADING_SCREEN_BDN.png?ex=6792d98f&is=6791880f&hm=951463ec0a812ecbb6a5c470f0d006920d13f92e3bb5643dd9803a71c64266d6&'
+    ) // Replace with your image URL
+    .setFooter({
+      text: 'Powered by CAT',
+      iconURL:
+        'https://media1.giphy.com/media/v1.Y2lkPTc5MGI3NjExaWl6d3lwaHR0MXBob3Nic21hbzU4NDg0NWRzdnhvYnl2Nzk5NHpkYyZlcD12MV9pbnRlcm5hbF9naWZfYnlfaWQmY3Q9Zw/S1SnLg08CxnUGqyqha/giphy.gif',
+    }); // Replace with your icon URL
+  await channel.send({ embeds: [embed], components: [buttonsRow] });
 });
-
-// Event: Ketika menerima pesan
-client.on('messageCreate', async (message) => {
-  if (message.author.bot) return;
-
-  if (message.content.startsWith('!register')) {
-    const args = message.content.split(' ').slice(1);
-
-    if (args.length < 2) {
-      message.reply('Please provide a username and password.');
-    } else {
-      const username = args[0];
-      const password = args[1];
-
-      const pool = await sql.connect(dbConfig);
-      const user_count = await pool
-        .request()
-        .input('discord_id', sql.VarChar, message.author.id)
-        .query(
-          'SELECT COUNT(*) AS user_count FROM Accounts WHERE discord_id = @discord_id'
-        );
-      if (user_count.recordset[0].user_count > 1) {
-        message.reply(
-          'You have already registered the maximum number of accounts.'
-        );
-      } else {
-        const result = await registerAccount(
-          username,
-          password,
-          message.author.id
-        );
-        if (result === 0) {
-          message.reply('You have been successfully registered!');
-        } else if (result === 1) {
-          message.reply('Account already exists.');
-        } else if (result === 3) {
-          message.reply(
-            "You are not authorized to change this account's password."
-          );
-        } else {
-          message.reply('An error occurred while registering.');
-        }
+// Interaction handler
+client.on('interactionCreate', async (interaction) => {
+  if (interaction.isButton()) {
+    const command = client.commands.get(interaction.customId);
+    if (command) {
+      try {
+        await command.execute(interaction);
+      } catch (error) {
+        console.error(error);
+        await interaction.reply({
+          content: 'There was an error while executing this action!',
+          flags: [MessageFlags.Ephemeral],
+        });
+      }
+    }
+  } else if (interaction.isModalSubmit()) {
+    const command = client.commands.get(interaction.customId);
+    if (command) {
+      try {
+        await command.execute(interaction);
+      } catch (error) {
+        console.error(error);
+        await interaction.reply({
+          content: 'There was an error while executing this action!',
+          flags: [MessageFlags.Ephemeral],
+        });
       }
     }
   }
 });
-
-// Fungsi untuk registrasi akun
-async function registerAccount(username, password, discordId) {
-  try {
-    const pool = await sql.connect(dbConfig);
-    const resultRegister = await pool
-      .request()
-      .input('AccountName', sql.VarChar, username)
-      .input('NxLoginPwd', sql.VarChar, password)
-      .input('DiscordID', sql.VarChar, discordId)
-      .execute('_BOT_DISCORD_AKUN');
-
-    return resultRegister.recordset[0][''];
-  } catch (err) {
-    console.error('Error during registration:', err);
-    return -1;
-  }
-}
-
-async function countPlayerOnline() {
-  try {
-    const pool = await sql.connect(dbConfig);
-    const result = await pool.request().query(`
-      DECLARE @selectPlayer int = (SELECT COUNT(*) FROM DNAuth where CertifyingStep = 2 ) ;
-      DECLARE @totalPlayer int  = @selectPlayer;
-
-      -- Return the result
-      SELECT @TotalPlayer AS TotalPlayer;
-    `);
-    if (result.recordset && result.recordset.length > 0) {
-      const { SelectPlayer, TotalPlayer } = result.recordset[0];
-      if (SelectPlayer !== null) {
-        return TotalPlayer;
-      } else {
-        return 0;
-      }
-    } else {
-      return 0;
-    }
-  } catch (error) {
-    console.error('Error executing query:', error);
-    return -1;
-  }
-}
-
 // Jalankan bot
 connectToDatabase().then(() => {
   client.login(process.env.DISCORD_BOT_TOKEN);
